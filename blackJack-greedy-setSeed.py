@@ -1,0 +1,98 @@
+import collections
+import random
+import gymnasium as gym
+import numpy as np
+
+class BlackjackQLearner:
+    def __init__(self, lr=0.01, gamma=0.95, init_epsilon=1.0, epsilon_decay=0.99995, min_epsilon=0.1):
+        # Store Q-values in a default dictionary where default is array [0.0, 0.0] (Stand, Hit)
+        self.q_values = collections.defaultdict(lambda: np.zeros(2))
+        self.lr = lr                  # Learning rate (Alpha)
+        self.gamma = gamma            # Discount factor
+        self.epsilon = init_epsilon   # Exploration rate
+        self.epsilon_decay = epsilon_decay
+        self.min_epsilon = min_epsilon
+
+    def get_action(self, state, training=True) -> int:
+        """Choose action using epsilon-greedy strategy."""
+        if training and random.random() < self.epsilon:
+            return random.randint(0, 1)  # Explore: Random action (0 or 1)
+        else:
+            return int(np.argmax(self.q_values[state]))  # Exploit: Best known action
+
+    def update(self, state, action, reward, next_state, done):
+        """Update Q-values using the Bellman Equation."""
+        future_q = 0 if done else np.max(self.q_values[next_state])
+        # Temporal Difference (TD) target
+        td_target = reward + self.gamma * future_q
+        # Update rule
+        self.q_values[state][action] += self.lr * (td_target - self.q_values[state][action])
+
+    def decay_epsilon(self):
+        """Gradually decrease exploration over time."""
+        self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
+
+# ==========================================
+# 1. Training Phase (STRICTLY REPRODUCIBLE)
+# ==========================================
+env = gym.make('Blackjack-v1', sab=True)
+agent = BlackjackQLearner()
+num_episodes = 500000
+
+# 1. Fix Python's native random seed so epsilon-greedy choices are identical across runs
+TRAIN_SEED = 57
+random.seed(TRAIN_SEED)
+
+print(f"Training agent over {num_episodes:,} episodes...")
+for episode in range(num_episodes):
+    # 2. Map the episode index to a distinct, reproducible seed for the environment
+    obs, info = env.reset(seed=TRAIN_SEED + episode)
+    done = False
+    
+    while not done:
+        action = agent.get_action(obs, training=True)
+        next_obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
+        
+        # Update the Q-table
+        agent.update(obs, action, reward, next_obs, done)
+        obs = next_obs
+        
+    agent.decay_epsilon()
+
+print(f"Training finished! Final Epsilon: {agent.epsilon:.4f}")
+print(f"Unique states discovered: {len(agent.q_values)}")
+
+# ==========================================
+# 2. Evaluation Phase (COMPLETELY RANDOM)
+# ==========================================
+test_episodes = 10_000
+wins, losses, draws = 0, 0, 0
+
+# 3. Disconnect Python's random state so any downstream evaluation logic stays unseeded
+random.seed(None)
+
+for _ in range(test_episodes):
+    # 4. Leaving out the seed completely ensures this evaluation match is pure random luck
+    obs, info = env.reset()
+    done = False
+    
+    while not done:
+        # Exploit only during evaluation
+        action = agent.get_action(obs, training=False)
+        obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
+        
+    if reward > 0:
+        wins += 1
+    elif reward < 0:
+        losses += 1
+    else:
+        draws += 1
+
+print("\n--- Evaluation Results (10,000 Games) ---")
+print(f"Win Rate:  {(wins / test_episodes) * 100:.2f}%")
+print(f"Loss Rate: {(losses / test_episodes) * 100:.2f}%")
+print(f"Draw Rate: {(draws / test_episodes) * 100:.2f}%")
+
+env.close()
