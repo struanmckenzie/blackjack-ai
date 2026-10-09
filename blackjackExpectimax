@@ -1,0 +1,488 @@
+import collections
+import random
+from functools import lru_cache
+
+import gymnasium as gym
+import numpy as np
+
+
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+SEED = 8865455
+TRAIN_EPISODES = 500_000
+TEST_EPISODES = 100_000
+
+# Card probabilities for Gymnasium Blackjack-v1.
+# Ace = 1, cards 2-9 have probability 1/13 each,
+# and all 10-valued cards have combined probability 4/13.
+CARD_VALUES = tuple(range(1, 11))
+CARD_PROBS = tuple([1 / 13] * 9 + [4 / 13])
+
+
+# ============================================================
+# 1. Q-LEARNING AGENT (YOUR ORIGINAL APPROACH)
+# ============================================================
+
+class BlackjackQLearner:
+    def __init__(
+        self,
+        lr=0.01,
+        gamma=0.95,
+        init_epsilon=1.0,
+        epsilon_decay=0.99995,
+        min_epsilon=0.1
+    ):
+        self.q_values = collections.defaultdict(
+            lambda: np.zeros(2)
+        )
+        self.lr = lr
+        self.gamma = gamma
+        self.epsilon = init_epsilon
+        self.epsilon_decay = epsilon_decay
+        self.min_epsilon = min_epsilon
+
+    def get_action(self, state, training=True):
+        if training and random.random() < self.epsilon:
+            return random.randint(0, 1)
+
+        return int(np.argmax(self.q_values[state]))
+
+    def update(self, state, action, reward, next_state, done):
+        future_q = (
+            0 if done
+            else np.max(self.q_values[next_state])
+        )
+
+        td_target = reward + self.gamma * future_q
+
+        self.q_values[state][action] += (
+            self.lr *
+            (td_target - self.q_values[state][action])
+        )
+
+    def decay_epsilon(self):
+        self.epsilon = max(
+            self.min_epsilon,
+            self.epsilon * self.epsilon_decay
+        )
+
+
+# ============================================================
+# 2. EXPECTIMAX SEARCH AGENT
+# ============================================================
+
+class BlackjackExpectimax:
+    """
+    Model-based search agent.
+
+    It calculates expected returns for Hit and Stand using
+    the known card probabilities and dealer rules.
+
+    It does not train a Q-table or use random exploration.
+    """
+
+    def add_card(self, total, usable_ace, card):
+        """Update a hand total after drawing a card."""
+        if card == 1 and total + 11 <= 21:
+            total += 11
+            usable_ace = True
+        else:
+            total += card
+
+        # If the hand busts, count a usable ace as 1 instead.
+        if total > 21 and usable_ace:
+            total -= 10
+            usable_ace = False
+
+        return total, usable_ace
+
+    @lru_cache(maxsize=None)
+    def dealer_distribution(self, total, usable_ace):
+        """
+        Return possible final dealer totals and probabilities.
+
+        The dealer draws until reaching at least 17, matching
+        Blackjack-v1's dealer drawing rule.
+        """
+        if total >= 17:
+            return ((total, 1.0),)
+
+        outcomes = collections.defaultdict(float)
+
+        for card, probability in zip(CARD_VALUES, CARD_PROBS):
+            next_total, next_usable = self.add_card(
+                total, usable_ace, card
+            )
+
+            if next_total > 21:
+                outcomes[22] += probability  # Dealer bust
+            else:
+                for final_total, final_probability in (
+                    self.dealer_distribution(
+                        next_total, next_usable
+                    )
+                ):
+                    outcomes[final_total] += (
+                        probability * final_probability
+                    )
+
+        return tuple(outcomes.items())
+
+    @lru_cache(maxsize=None)
+    def stand_value(self, player_total, dealer_upcard):
+        """
+        Expected reward from standing.
+
+        Average over the dealer's hidden card and subsequent
+        draws. The hidden card is not assumed to be known.
+        """
+        expected_reward = 0.0
+
+        for hole_card, hole_probability in zip(
+            CARD_VALUES, CARD_PROBS
+        ):
+            dealer_total, dealer_usable = self.add_card(
+                dealer_upcard, False, hole_card
+            )
+
+            # A dealer's initial two-card hand can be 21.
+            # In this simplified state-value model, it is
+            # treated as an ordinary total of 21.
+            if dealer_total > 21:
+                dealer_outcomes = ((22, 1.0),)
+            else:
+                dealer_outcomes = self.dealer_distribution(
+                    dealer_total, dealer_usable
+                )
+
+            for final_total, final_probability in dealer_outcomes:
+                if final_total > 21:
+                    reward = 1.0
+                elif player_total > final_total:
+                    reward = 1.0
+                elif player_total < final_total:
+                    reward = -1.0
+                else:
+                    reward = 0.0
+
+                expected_reward += (
+                    hole_probability *
+                    final_probability *
+                    reward
+                )
+
+        return expected_reward
+
+    @lru_cache(maxsize=None)
+    def state_value(self, player_total, dealer_upcard, usable_ace):
+        """
+        Evaluate a state by comparing Hit and Stand.
+
+        Expectimax takes a probability-weighted average over
+        random card outcomes, then selects the better action.
+        """
+        if player_total >= 21:
+            return self.stand_value(player_total, dealer_upcard)
+
+        # Option 1: Stand now
+        stand = self.stand_value(
+            player_total, dealer_upcard
+        )
+
+        # Option 2: Hit and evaluate every possible next card
+        hit = 0.0
+
+        for card, probability in zip(CARD_VALUES, CARD_PROBS):
+            next_total, next_usable = self.add_card(
+                player_total, usable_ace, card
+            )
+
+            if next_total > 21:
+                next_value = -1.0
+            else:
+                next_value = self.state_value(
+                    next_total,
+                    dealer_upcard,
+                    next_usable
+                )
+
+            hit += probability * next_value
+
+        return max(stand, hit)
+
+    def get_action(self, observation, training=False):
+        player_total, dealer_upcard, usable_ace = observation
+
+        if player_total >= 21:
+            return 0
+
+        stand = self.stand_value(
+            player_total, dealer_upcard
+        )
+
+        hit = 0.0
+
+        for card, probability in zip(CARD_VALUES, CARD_PROBS):
+            next_total, next_usable = self.add_card(
+                player_total, bool(usable_ace), card
+            )
+
+            if next_total > 21:
+                next_value = -1.0
+            else:
+                next_value = self.state_value(
+                    next_total,
+                    dealer_upcard,
+                    next_usable
+                )
+
+            hit += probability * next_value
+
+        # Action 0 = Stand, action 1 = Hit
+        return 1 if hit > stand else 0
+
+
+# ============================================================
+# 3. TRAIN THE Q-LEARNING AGENT
+# ============================================================
+
+print("=" * 60)
+print("BLACKJACK: Q-LEARNING VS EXPECTIMAX SEARCH")
+print("=" * 60)
+
+random.seed(SEED)
+np.random.seed(SEED)
+
+train_env = gym.make("Blackjack-v1", sab=True)
+q_agent = BlackjackQLearner()
+
+print(f"\nTraining Q-learning for {TRAIN_EPISODES:,} episodes...")
+
+for episode in range(TRAIN_EPISODES):
+    # Seed the first training episode for reproducibility.
+    if episode == 0:
+        obs, info = train_env.reset(seed=SEED)
+    else:
+        obs, info = train_env.reset()
+
+    done = False
+
+    while not done:
+        action = q_agent.get_action(obs, training=True)
+
+        next_obs, reward, terminated, truncated, info = (
+            train_env.step(action)
+        )
+
+        done = terminated or truncated
+
+        q_agent.update(
+            obs, action, reward, next_obs, done
+        )
+
+        obs = next_obs
+
+    q_agent.decay_epsilon()
+
+print("Q-learning training complete.")
+print(f"Final epsilon: {q_agent.epsilon:.4f}")
+print(f"Unique Q-table states: {len(q_agent.q_values)}")
+
+train_env.close()
+
+
+# ============================================================
+# 4. CREATE THE SEARCH AGENT
+# ============================================================
+
+search_agent = BlackjackExpectimax()
+
+print("\nExpectimax search agent ready.")
+print("No training episodes required.")
+
+
+# ============================================================
+# 5. EVALUATION FUNCTION
+# ============================================================
+
+def evaluate_agent(agent, num_episodes, seed):
+    """
+    Evaluate an agent without exploration.
+
+    Each episode is reset with a reproducible seed.
+    """
+    env = gym.make("Blackjack-v1", sab=True)
+
+    wins = 0
+    losses = 0
+    draws = 0
+    total_reward = 0.0
+
+    for episode in range(num_episodes):
+        obs, info = env.reset(seed=seed + episode)
+        done = False
+        reward = 0.0
+
+        while not done:
+            action = agent.get_action(obs, training=False)
+
+            obs, reward, terminated, truncated, info = (
+                env.step(action)
+            )
+
+            done = terminated or truncated
+
+        total_reward += reward
+
+        if reward > 0:
+            wins += 1
+        elif reward < 0:
+            losses += 1
+        else:
+            draws += 1
+
+    env.close()
+
+    return {
+        "wins": wins,
+        "losses": losses,
+        "draws": draws,
+        "win_rate": 100 * wins / num_episodes,
+        "loss_rate": 100 * losses / num_episodes,
+        "draw_rate": 100 * draws / num_episodes,
+        "average_reward": total_reward / num_episodes,
+    }
+
+
+# ============================================================
+# 6. EVALUATE BOTH AGENTS
+# ============================================================
+
+print(f"\nEvaluating both agents over {TEST_EPISODES:,} games...")
+print("This may take a little while.")
+
+q_results = evaluate_agent(
+    q_agent, TEST_EPISODES, SEED + 1_000_000
+)
+
+search_results = evaluate_agent(
+    search_agent, TEST_EPISODES, SEED + 1_000_000
+)
+
+
+# ============================================================
+# 7. PRINT SIDE-BY-SIDE COMPARISON
+# ============================================================
+
+def print_comparison(q_results, search_results):
+    print("\n" + "=" * 72)
+    print("FINAL RESULTS: Q-LEARNING VS EXPECTIMAX SEARCH")
+    print("=" * 72)
+
+    print(
+        f"{'Metric':<22}"
+        f"{'Q-learning':>16}"
+        f"{'Expectimax':>16}"
+        f"{'Difference':>16}"
+    )
+
+    print("-" * 72)
+
+    metrics = [
+        ("Wins", "wins", False),
+        ("Losses", "losses", False),
+        ("Draws", "draws", False),
+        ("Win rate (%)", "win_rate", True),
+        ("Loss rate (%)", "loss_rate", True),
+        ("Draw rate (%)", "draw_rate", True),
+        ("Average reward", "average_reward", True),
+    ]
+
+    for label, key, is_float in metrics:
+        q_value = q_results[key]
+        s_value = search_results[key]
+        difference = s_value - q_value
+
+        if is_float:
+            print(
+                f"{label:<22}"
+                f"{q_value:>15.3f}"
+                f"{s_value:>16.3f}"
+                f"{difference:>+16.3f}"
+            )
+        else:
+            print(
+                f"{label:<22}"
+                f"{q_value:>16,}"
+                f"{s_value:>16,}"
+                f"{difference:>+16,}"
+            )
+
+    print("-" * 72)
+
+    if search_results["average_reward"] > q_results["average_reward"]:
+        print("Higher average reward: Expectimax search")
+    elif search_results["average_reward"] < q_results["average_reward"]:
+        print("Higher average reward: Q-learning")
+    else:
+        print("Both agents achieved the same average reward.")
+
+    print("\nNote: Higher average reward is better.")
+    print("Results are empirical and may vary with training settings.")
+
+
+print_comparison(q_results, search_results)
+
+
+# ============================================================
+# 8. DISPLAY THE LEARNED Q-LEARNING POLICY
+# ============================================================
+
+def print_policy(q_values):
+    player_sums = range(21, 11, -1)
+    dealer_cards = range(1, 11)
+
+    for usable_ace in [True, False]:
+        ace_label = (
+            "USABLE ACE" if usable_ace else "NO USABLE ACE"
+        )
+
+        print(f"\n{'=' * 20} POLICY: {ace_label} {'=' * 20}")
+        print("     " + " ".join(f"{d:2d}" for d in dealer_cards))
+        print("   " + "-" * 32)
+
+        for player_sum in player_sums:
+            row_actions = []
+
+            for dealer_card in dealer_cards:
+                state = (
+                    player_sum,
+                    dealer_card,
+                    usable_ace
+                )
+
+                if state in q_values:
+                    best_action = int(
+                        np.argmax(q_values[state])
+                    )
+                else:
+                    best_action = 0
+
+                row_actions.append(
+                    " H " if best_action == 1 else " . "
+                )
+
+            print(
+                f"{player_sum:2d} |" +
+                "".join(row_actions)
+            )
+
+        print("   " + "-" * 32)
+        print("H = Hit | . = Stand")
+
+
+print_policy(q_agent.q_values)
+
+print("\nProgram finished.")
