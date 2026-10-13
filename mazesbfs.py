@@ -15,11 +15,14 @@ def isMoveValid(maze, pos):
         return not maze[y, x]
     return False
 
-def drawPath(img, path):
+def drawPath(img, path, visted):
     draw = ImageDraw.Draw(img)
-    for pos in path:
+    for pos in visted:
         x, y = pos
         draw.point((x, y), fill="red")
+    for pos in path:
+        x, y = pos
+        draw.point((x, y), fill="blue")
     return img
 
 
@@ -30,7 +33,7 @@ def dfs(maze, start, end):
     while stack:
         (current_x, current_y), path = stack.pop()
         if (current_x, current_y) == end:
-            return path
+            return path, visited
 
         for dx, dy in directions:
             next_x, next_y = current_x + dx, current_y + dy
@@ -38,7 +41,7 @@ def dfs(maze, start, end):
                 visited.add((next_x, next_y))
                 stack.append(((next_x, next_y), path + [(next_x, next_y)]))
 
-    return False
+    return None, visited
 
 # Function for a breadth-first search to find the shortest path
 def bfs(maze, start, end):
@@ -48,13 +51,13 @@ def bfs(maze, start, end):
     while queue:
         (current_x, current_y), path = queue.pop(0)
         if (current_x, current_y) == end:
-            return path
+            return path, visited
         for dx, dy in directions:
             next_x, next_y = current_x + dx, current_y + dy
             if isMoveValid(maze, (next_x, next_y)) and (next_x, next_y) not in visited:
                 visited.add((next_x, next_y))
                 queue.append(((next_x, next_y), path + [(next_x, next_y)]))
-    return None
+    return None, visited
 
 # Define a function to solve and save the maze image
 def solve_and_save_maze_dfs(image_path, output_directory):
@@ -65,11 +68,11 @@ def solve_and_save_maze_dfs(image_path, output_directory):
     end_point = (maze.shape[1] - 1, maze.shape[0] - 2)
 
     # Solve the maze
-    solved_path = dfs(maze, start_point, end_point)
+    solved_path, visited = dfs(maze, start_point, end_point)
 
     # Draw the path on the maze and save it
     if solved_path:
-        maze_solved_img = drawPath(maze_img, solved_path)
+        maze_solved_img = drawPath(maze_img, solved_path, visited)
         # Save the solved maze with path
         filename = os.path.basename(image_path)
         output_path = os.path.join(output_directory, filename)
@@ -87,11 +90,11 @@ def solve_and_save_maze_bfs(image_path, output_directory):
     end_point = (maze.shape[1] - 1, maze.shape[0] - 2)
 
     # Solve the maze
-    solved_path = bfs(maze, start_point, end_point)
+    solved_path, visited = bfs(maze, start_point, end_point)
 
     # Draw the path on the maze and save it
     if solved_path:
-        maze_solved_img = drawPath(maze_img, solved_path)
+        maze_solved_img = drawPath(maze_img, solved_path, visited)
         # Save the solved maze with path
         filename = os.path.basename(image_path)
         output_path = os.path.join(output_directory, filename)
