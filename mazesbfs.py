@@ -106,7 +106,7 @@ def solve_and_save_maze_bfs(image_path, output_directory):
 
 if __name__ == "__main__":
     # Directory paths
-    input_directory = 'maze'
+    input_directory = 'imperfect_maze_png'
     output_directory_dfs = 'workingDFS'
     output_directory_bfs = 'workingBFS'
 

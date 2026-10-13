@@ -19,6 +19,8 @@ from pathlib import Path
 
 from PIL import Image
 
+import os
+
 
 def read_grid(path):
     rows = []
@@ -41,26 +43,25 @@ def read_grid(path):
 
 
 def main():
-    p = argparse.ArgumentParser(description="Turn a txt file of 1s and 0s into a PNG.")
-    p.add_argument("input", help="path to the .txt file")
-    p.add_argument("-o", "--output", help="output PNG path (default: input name with .png)")
-    p.add_argument("--invert", action="store_true", help="1 = white, 0 = black")
-    p.add_argument("--scale", type=int, default=1, help="pixels per value (default 1)")
-    args = p.parse_args()
 
-    rows = read_grid(args.input)
-    h, w = len(rows), len(rows[0])
+    input_directory = "imperfect_maze"
+    output_directory = "imperfect_maze_png"
 
-    black_value, white_value = (1, 0) if not args.invert else (0, 1)
-    img = Image.new("L", (w, h), 255)
-    img.putdata([0 if v == black_value else 255 for row in rows for v in row])
+    os.makedirs(output_directory, exist_ok=True)
+    
+    image_paths = [os.path.join(input_directory, filename) for filename in os.listdir(input_directory) if filename.endswith('.txt')]
 
-    if args.scale > 1:
-        img = img.resize((w * args.scale, h * args.scale), Image.NEAREST)
+    for file in image_paths:
+        output_path = os.path.join(output_directory,os.path.splitext(os.path.basename(file))[0] + ".png")
+        rows = read_grid(file)
+        h, w = len(rows), len(rows[0])
 
-    out = args.output or str(Path(args.input).with_suffix(".png"))
-    img.save(out)
-    print(f"Saved {out} ({img.width}x{img.height})")
+        black_value, white_value = (1, 0)
+        img = Image.new("L", (w, h), 255)
+        img.putdata([0 if v == black_value else 255 for row in rows for v in row])
+
+        img.save(output_path)
+        print(f"Saved {file} ({img.width}x{img.height})")
 
 
 if __name__ == "__main__":
