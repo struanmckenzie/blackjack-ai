@@ -20,3 +20,17 @@ def drawPath(img, path):
         x, y = pos
         draw.point((x, y), fill="red")
     return img
+
+def bfs(maze, start, end):
+    directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    queue = [(start, [start])]
+    visited = set()
+    while queue:
+        (currX, currY), path = queue.pop(0)
+        if (currX, currY) == end:
+            return path
+        for dx, dy in directions:
+            nextX, nextY = currX +dx, currY + dy
+            if isMoveValid(maze, (nextX, nextY)) and (nextX, nextY) not in visited:
+                visited.add((nextX, nextY))
+                queue.append((nextX, nextY), path + [(nextX, nextY)])
