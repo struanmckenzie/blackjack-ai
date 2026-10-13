@@ -1,3 +1,4 @@
+from concurrent.futures import ProcessPoolExecutor
 from PIL import Image, ImageDraw
 import numpy as np
 import os
@@ -20,3 +21,119 @@ def drawPath(img, path):
         x, y = pos
         draw.point((x, y), fill="red")
     return img
+
+
+def dfs(maze, start, end):
+    directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    stack = [(start, [start])]
+    visited = {start}
+    while stack:
+        (current_x, current_y), path = stack.pop()
+        if (current_x, current_y) == end:
+            return path
+
+        for dx, dy in directions:
+            next_x, next_y = current_x + dx, current_y + dy
+            if isMoveValid(maze, (next_x, next_y)) and (next_x, next_y) not in visited:
+                visited.add((next_x, next_y))
+                stack.append(((next_x, next_y), path + [(next_x, next_y)]))
+
+    return False
+
+# Function for a breadth-first search to find the shortest path
+def bfs(maze, start, end):
+    directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    queue = [(start, [start])]
+    visited = {start}
+    while queue:
+        (current_x, current_y), path = queue.pop(0)
+        if (current_x, current_y) == end:
+            return path
+        for dx, dy in directions:
+            next_x, next_y = current_x + dx, current_y + dy
+            if isMoveValid(maze, (next_x, next_y)) and (next_x, next_y) not in visited:
+                visited.add((next_x, next_y))
+                queue.append(((next_x, next_y), path + [(next_x, next_y)]))
+    return None
+
+# Define a function to solve and save the maze image
+def solve_and_save_maze_dfs(image_path, output_directory):
+    maze_img, maze = loadMaze(image_path)
+
+    # Define start and end points
+    start_point = (0, 1)  # Example start point
+    end_point = (maze.shape[1] - 1, maze.shape[0] - 2)
+
+    # Solve the maze
+    solved_path = dfs(maze, start_point, end_point)
+
+    # Draw the path on the maze and save it
+    if solved_path:
+        maze_solved_img = drawPath(maze_img, solved_path)
+        # Save the solved maze with path
+        filename = os.path.basename(image_path)
+        output_path = os.path.join(output_directory, filename)
+        maze_solved_img.save(output_path)
+        return output_path
+    else:
+        print(f"No solution found for the maze: {image_path}")
+        return None
+
+def solve_and_save_maze_bfs(image_path, output_directory):
+    maze_img, maze = loadMaze(image_path)
+
+    # Define start and end points
+    start_point = (0, 1)  # Example start point
+    end_point = (maze.shape[1] - 1, maze.shape[0] - 2)
+
+    # Solve the maze
+    solved_path = bfs(maze, start_point, end_point)
+
+    # Draw the path on the maze and save it
+    if solved_path:
+        maze_solved_img = drawPath(maze_img, solved_path)
+        # Save the solved maze with path
+        filename = os.path.basename(image_path)
+        output_path = os.path.join(output_directory, filename)
+        maze_solved_img.save(output_path)
+        return output_path
+    else:
+        print(f"No solution found for the maze: {image_path}")
+        return None
+
+if __name__ == "__main__":
+    # Directory paths
+    input_directory = 'maze'
+    output_directory_dfs = 'workingDFS'
+    output_directory_bfs = 'workingBFS'
+
+    # Create the output directory if it doesn't exist
+    os.makedirs(output_directory_dfs, exist_ok=True)
+    os.makedirs(output_directory_bfs, exist_ok=True)
+
+    # Get all the image paths
+    image_paths = [os.path.join(input_directory, filename) for filename in os.listdir(input_directory) if filename.endswith('.png')]
+    
+    # Limit the number of images to process
+    max_images = 100
+    image_paths = image_paths[:max_images]
+
+    print(f"Will only process {len(image_paths)} images.")
+
+    # Process the images using multiple processes
+    with ProcessPoolExecutor() as executor:
+        # List to store futures
+        futures = []
+        for image_path in image_paths:
+            futures.append(executor.submit(solve_and_save_maze_dfs, image_path, output_directory_dfs))
+            futures.append(executor.submit(solve_and_save_maze_bfs, image_path, output_directory_bfs))
+
+        # Track the progress and print after every 10 mazes solved
+        completed = 0
+        total = len(futures)
+        update_interval = 10
+        for future in futures:
+            future.result()
+            completed += 1
+            if completed % update_interval == 0:
+                print(f"Solved {completed}/{total} mazes")
