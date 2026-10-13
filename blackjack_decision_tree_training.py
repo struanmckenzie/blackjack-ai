@@ -9,7 +9,7 @@ def train():
 
     data = pd.read_csv("black_jack_training.csv")
 
-    features = ["player_total", "dealer_upcard", "usable_ace", "true_count"]
+    features = ["player_total", "dealer_upcard", "usable_ace"]
 
     x = data[features]
     y = data["action"]
@@ -36,15 +36,15 @@ def train():
     print(classification_report(y_test, predictions))
 
     # Visualize the learned rules
-    plt.figure(figsize=(18, 9))
-    plot_tree(
-        model,
-        feature_names=features,
-        class_names=model.classes_,
-        filled=True,
-        rounded=True,
-    )
+    #plt.figure(figsize=(18, 9))
+    #plot_tree(
+    #    model,
+    #    feature_names=features,
+    #    class_names=model.classes_,
+    #    filled=True,
+    #    rounded=True,
+    #)
 
-    plt.show()
+    #plt.show()
 
     return model
