@@ -15,4 +15,8 @@ def isMoveValid(maze, pos):
     return False
 
 def drawPath(img, path):
-    draw = ImageDraw
+    draw = ImageDraw.Draw(img)
+    for pos in path:
+        x, y = pos
+        draw.point((x, y), fill="red")
+    return img
