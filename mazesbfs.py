@@ -97,9 +97,9 @@ def solve_and_save_maze_bfs(image_path, output_directory):
         maze_solved_img = drawPath(maze_img, solved_path, visited)
         # Save the solved maze with path
         filename = os.path.basename(image_path)
-        output_path = os.path.join(output_directory, filename)
-        maze_solved_img.save(output_path)
-        return output_path
+        #output_path = os.path.join(output_directory, filename + "P=" + str(len(solved_path)) + " E=" + str(len(visited)))
+        #maze_solved_img.save(output_path)
+        #return output_path
     else:
         print(f"No solution found for the maze: {image_path}")
         return None
