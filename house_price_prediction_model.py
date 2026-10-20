@@ -19,11 +19,24 @@ X_train, X_test, Y_train, Y_test = train_test_split(x, y, test_size=0.2, random_
 
 #This is a list of hyperparameters that will be used when training the model
 #These are here so we can test different combinations of hyperparameters so we can find the combination that gives the best score
-param_grid = {
+param_grid_forest = {
     "n_estimators": [1, 50, 100, 1000],
     "max_depth": [None, 1, 10],
     "min_samples_split": [2, 5],
     "min_samples_leaf": [1, 2,]
+}
+
+param_grid_linear = {
+    "fit_intercept": [True, False],
+    "positive": [True, False]
+}
+
+param_grid_gradient = {
+    "n_estimators": [100, 200],
+    "learning_rate": [0.05, 0.1],
+    "min_samples_split": [2, 5],
+    "min_samples_leaf": [1, 2,],
+    "subsample": [0.8, 1]
 }
 
 #Creates a random forest regressor model
@@ -32,26 +45,47 @@ linear_model = LinearRegression()
 gradient_model = GradientBoostingRegressor()
 
 #Search's through all the combinations of hyperparameters to find the combination that gives the best mean_absolute error
-grid_search = GridSearchCV(
+grid_search_forest = GridSearchCV(
     estimator=forest_model,
-    param_grid=param_grid,
+    param_grid=param_grid_forest,
+    cv=5,
+    scoring="neg_mean_absolute_error",
+    n_jobs=-1
+)
+
+grid_search_linear = GridSearchCV(
+    estimator=linear_model,
+    param_grid=param_grid_linear,
+    cv=5,
+    scoring="neg_mean_absolute_error",
+    n_jobs=-1
+)
+
+grid_search_gradient = GridSearchCV(
+    estimator=gradient_model,
+    param_grid=param_grid_gradient,
     cv=5,
     scoring="neg_mean_absolute_error",
     n_jobs=-1
 )
 
 #Trains the model on all the different hyperparameter combinations to find the best combination 
-grid_search.fit(X_train, Y_train)
-linear_model.fit(X_train, Y_train)
-gradient_model.fit(X_train, Y_train)
+grid_search_forest.fit(X_train, Y_train)
+grid_search_linear.fit(X_train, Y_train)
+grid_search_gradient.fit(X_train, Y_train)
 
 #Sets the model to the random forest regressor with the best combination of hyperparameters
-model = grid_search.best_estimator_
+forest_model = grid_search_forest.best_estimator_
+linear_model = grid_search_linear.best_estimator_
+gradient_model = grid_search_gradient.best_estimator_
 
-print(f"Best hyperparameters: {grid_search.best_params_}")
+
+print(f"Best hyperparameters forest: {grid_search_forest.best_params_}")
+print(f"Best hyperparameters linear: {grid_search_linear.best_params_}")
+print(f"Best hyperparameters gradient: {grid_search_gradient.best_params_}")
 
 #Uses the model to predict the prices of the houses within the test data set
-forest_predictions = model.predict(X_test)
+forest_predictions = forest_model.predict(X_test)
 linear_predictions = linear_model.predict(X_test)
 gradient_predictions = gradient_model.predict(X_test)
 
