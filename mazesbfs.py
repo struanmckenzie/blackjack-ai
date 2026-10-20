@@ -3,6 +3,7 @@ from PIL import Image, ImageDraw
 import numpy as np
 import os
 import heapq
+import time
 
 def loadMaze(imagePath):
     img = Image.open(imagePath).convert('L')
@@ -142,7 +143,10 @@ def solve_and_save_maze(image_path, output_directory, algorithm):
     end_point = (maze.shape[1] - 1, maze.shape[0] - 2)
 
     # Solve the maze
+    start_time = time.perf_counter()
     solved_path, visited = algorithm(maze, start_point, end_point)
+    end_time = time.perf_counter()
+    execution_time = end_time - start_time
 
     # Draw the path on the maze and save it
     if solved_path:
@@ -150,7 +154,7 @@ def solve_and_save_maze(image_path, output_directory, algorithm):
         # Save the solved maze with path
         filename = os.path.basename(image_path)
         name, ext = os.path.splitext(filename)
-        filename = (f"{name} e={str(len(visited))} p={str(len(solved_path))}{ext}")
+        filename = (f"{name} e={str(len(visited))} p={str(len(solved_path))} t={str(execution_time)}{ext}")
         output_path = os.path.join(output_directory, filename)
         maze_solved_img.save(output_path)
         return output_path
