@@ -180,8 +180,8 @@ if __name__ == "__main__":
     image_paths = [os.path.join(input_directory, filename) for filename in os.listdir(input_directory) if filename.endswith('.png')]
     
     # Limit the number of images to process
-    max_images = 100
-    image_paths = image_paths[:max_images]
+    #max_images = 100
+    #image_paths = image_paths[:max_images]
 
     print(f"Will only process {len(image_paths) * 4} images.")
 
