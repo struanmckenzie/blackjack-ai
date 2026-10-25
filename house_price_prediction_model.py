@@ -18,10 +18,10 @@ y = dataset["House_Price"]
 X_train, X_test, Y_train, Y_test = train_test_split(x, y, test_size=0.2, random_state=42)
 
 #This is a list of hyperparameters that will be used when training the model
-#These are here so we can test different combinations of hyperparameters so we can find the combination that gives the best score
+#These are here so we can test different combinations of hyperparameters for each model so we can find the combination that gives the best score
 param_grid_forest = {
-    "n_estimators": [1, 50, 100, 1000],
-    "max_depth": [None, 1, 10],
+    "n_estimators": [50, 100, 1000],
+    "max_depth": [None, 10],
     "min_samples_split": [2, 5],
     "min_samples_leaf": [1, 2,]
 }
@@ -39,12 +39,12 @@ param_grid_gradient = {
     "subsample": [0.8, 1]
 }
 
-#Creates a random forest regressor model
-forest_model = RandomForestRegressor(random_state=42)
+#Creates random forest regressor, linear regression and gradient boosting regressor models
+forest_model = RandomForestRegressor()
 linear_model = LinearRegression()
 gradient_model = GradientBoostingRegressor()
 
-#Search's through all the combinations of hyperparameters to find the combination that gives the best mean_absolute error
+#Search's through all the combinations of hyperparameters to find the combination that gives the best mean_absolute error does this for all the models
 grid_search_forest = GridSearchCV(
     estimator=forest_model,
     param_grid=param_grid_forest,
@@ -69,27 +69,27 @@ grid_search_gradient = GridSearchCV(
     n_jobs=-1
 )
 
-#Trains the model on all the different hyperparameter combinations to find the best combination 
+#Trains the models on all the different hyperparameter combinations to find the best combination for each model 
 grid_search_forest.fit(X_train, Y_train)
 grid_search_linear.fit(X_train, Y_train)
 grid_search_gradient.fit(X_train, Y_train)
 
-#Sets the model to the random forest regressor with the best combination of hyperparameters
+#Sets the models to the ones with the best combination of hyperparameters
 forest_model = grid_search_forest.best_estimator_
 linear_model = grid_search_linear.best_estimator_
 gradient_model = grid_search_gradient.best_estimator_
 
-
+#Prints the best hyperparameter combination for each individual model
 print(f"Best hyperparameters forest: {grid_search_forest.best_params_}")
 print(f"Best hyperparameters linear: {grid_search_linear.best_params_}")
 print(f"Best hyperparameters gradient: {grid_search_gradient.best_params_}")
 
-#Uses the model to predict the prices of the houses within the test data set
+#Predicts the house price for each data set in the test set for each model 
 forest_predictions = forest_model.predict(X_test)
 linear_predictions = linear_model.predict(X_test)
 gradient_predictions = gradient_model.predict(X_test)
 
-#The scores from testing the model
+#The scores from testing the models
 #mae - is the average error in the price that the model predicts
 #mse - is the average squared difference in the prices that the model predicts (THIS IS IMPORTANT AS BIGGER ERRORS IN THE PRICES HAVE MORE OF AN IMPACT ON THE SCORE)
 #rmse - is the square root of the mse value and it measures the prediction error in pounds making it easier to understand
@@ -109,36 +109,18 @@ gradient_mse = mean_squared_error(Y_test, gradient_predictions)
 gradient_rmse = np.sqrt(gradient_mse)
 gradient_r2 = r2_score(Y_test, gradient_predictions)
 
-#Prints out the calculated values
+#Prints out the calculated values/scores
 print("\nRandom forest regressor")
-print (f"Mean absolute score: {round(forest_mae, 2)}")
+print (f"Mean absolute error: {round(forest_mae, 2)}")
 print (f"Root mean squared error: {round(forest_rmse, 2)}")
 print (f"r^2 Score: {round(forest_r2, 5)}")
 
 print("\nLinear Regression")
-print (f"Mean absolute score: {round(linear_mae, 2)}")
+print (f"Mean absolute error: {round(linear_mae, 2)}")
 print (f"Root mean squared error: {round(linear_rmse, 2)}")
 print (f"r^2 Score: {round(linear_r2, 5)}")
 
 print("\nGradient Boosting Regressor")
-print (f"Mean absolute score: {round(gradient_mae, 2)}")
+print (f"Mean absolute error: {round(gradient_mae, 2)}")
 print (f"Root mean squared error: {round(gradient_rmse, 2)}")
 print (f"r^2 Score: {round(gradient_r2, 5)}")
-
-#3268,4,2,1983,3.1087902476038645,2,2,742599.2533323644
-#add this back to the original file when done
-
-#This is just test code and can be used to input details for a house and the model will predict what the price if the house is
-new_house = pd.DataFrame({
-    "Square_Footage": [3268], 
-    "Num_Bedrooms": [4], 
-    "Num_Bathrooms": [2], 
-    "Year_Built": 1983, 
-    "Lot_Size": [3.1087902476038645],
-    "Garage_Size": [2],
-    "Neighborhood_Quality": [2] 
-    })
-
-predicted_price = linear_model.predict(new_house)
-
-print(f"The model has predicted that the price of this house will be £{round(predicted_price[0], 2)}")
