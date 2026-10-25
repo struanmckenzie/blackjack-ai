@@ -8,7 +8,6 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 #Get the dataset from the csv file
 dataset = pd.read_csv("houses/house_price_regression_dataset.csv")
-#print(dataset[dataset.duplicated()])
 
 #Get the headings from the data set and separate the house price values as thats the value we are trying to predict
 x = dataset[["Square_Footage", "Num_Bedrooms", "Num_Bathrooms", "Year_Built", "Lot_Size", "Garage_Size", "Neighborhood_Quality"]]

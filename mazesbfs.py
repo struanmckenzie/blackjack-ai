@@ -5,18 +5,21 @@ import os
 import heapq
 import time
 
+#Takes in an image path and loads the image into grey scale and creates a numpy array of true and false values true for a wall false for the path
 def loadMaze(imagePath):
     img = Image.open(imagePath).convert('L')
     maze = np.array(img)
     maze = maze < 128
     return img, maze
 
+#Checks to see if a move is valid by making sure its within the size of the maze and its not a wall (true) 
 def isMoveValid(maze, pos):
     x, y = pos
     if 0 <= x < maze.shape[1] and 0 <= y < maze.shape[0]:
         return not maze[y, x]
     return False
 
+#Draws the path to the end of the maze as "Blue" (dark grey) and all the nodes that were vistited as "red"(light grey) however as the image is greyscale they appear as light and dark grey
 def drawPath(img, path, visted):
     draw = ImageDraw.Draw(img)
     for pos in visted:
@@ -27,7 +30,7 @@ def drawPath(img, path, visted):
         draw.point((x, y), fill="blue")
     return img
 
-
+#The depth first search algorithm
 def dfs(maze, start, end):
     directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
     stack = [(start, [start])]
@@ -47,7 +50,7 @@ def dfs(maze, start, end):
 
     return None, visited
 
-# Function for a breadth-first search to find the shortest path
+#The breadth first search algorithm
 def bfs(maze, start, end):
     directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
     queue = [(start, [start])]
@@ -65,6 +68,7 @@ def bfs(maze, start, end):
                 queue.append(((next_x, next_y), path + [(next_x, next_y)]))
     return None, visited
 
+#The a* search algorithm
 def a_star(maze, start, end):
     directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
     priority_queue = []
@@ -102,6 +106,7 @@ def a_star(maze, start, end):
 
     return None, visited
 
+#The greedy best first search algorithm
 def greedy_best_first(maze, start, end):
     directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
     priority_queue = []
@@ -128,30 +133,26 @@ def greedy_best_first(maze, start, end):
 
     return None, visited
 
-
+#The heuristic function for the informed search's uses the Manhattan Formula
 def heuristic(position, end):
     x, y = position
     end_x, end_y = end
     return abs(x - end_x) + abs(y - end_y)
 
-
+#This loads of the mazes and solves them depending on the algorithm passed in and saves them to the output_directory with the paths and explored nodes added
 def solve_and_save_maze(image_path, output_directory, algorithm):
     maze_img, maze = loadMaze(image_path)
 
-    # Define start and end points
-    start_point = (0, 1)  # Example start point
+    start_point = (0, 1)
     end_point = (maze.shape[1] - 1, maze.shape[0] - 2)
 
-    # Solve the maze
     start_time = time.perf_counter()
     solved_path, visited = algorithm(maze, start_point, end_point)
     end_time = time.perf_counter()
     execution_time = end_time - start_time
 
-    # Draw the path on the maze and save it
     if solved_path:
         maze_solved_img = drawPath(maze_img, solved_path, visited)
-        # Save the solved maze with path
         filename = os.path.basename(image_path)
         name, ext = os.path.splitext(filename)
         filename = (f"{name} e={str(len(visited))} p={str(len(solved_path))} t={str(execution_time)}{ext}")
@@ -179,10 +180,6 @@ if __name__ == "__main__":
     # Get all the image paths
     image_paths = [os.path.join(input_directory, filename) for filename in os.listdir(input_directory) if filename.endswith('.png')]
     
-    # Limit the number of images to process
-    #max_images = 100
-    #image_paths = image_paths[:max_images]
-
     print(f"Will only process {len(image_paths) * 4} images.")
 
     # Process the images using multiple processes
